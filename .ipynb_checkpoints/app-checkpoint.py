@@ -1,3 +1,4 @@
+
 from pathlib import Path
 
 import joblib
@@ -121,9 +122,15 @@ def load_models():
         joblib.load(PRESSURE_MODEL_PATH),
         joblib.load(TOXICITY_MODEL_PATH),
     )
+
     expected_model_features = None
-    for model, path in zip(models, (PRESSURE_MODEL_PATH, TOXICITY_MODEL_PATH)):
+
+    for model, path in zip(
+        models,
+        (PRESSURE_MODEL_PATH, TOXICITY_MODEL_PATH),
+    ):
         model_features = getattr(model, "feature_names_in_", None)
+
         if model_features is None:
             raise ValueError(
                 f"The model at {path.name} has no fitted feature names."
@@ -133,16 +140,21 @@ def load_models():
         normalized_features = tuple(
             str(feature).strip() for feature in model_features
         )
+
         if normalized_features != FEATURES:
             raise ValueError(
                 f"The model at {path.name} expects a different feature schema. "
                 "Use the matching model files from the notebook."
             )
+
         if (
             expected_model_features is not None
             and model_features != expected_model_features
         ):
-            raise ValueError("The saved models use different feature schemas.")
+            raise ValueError(
+                "The saved models use different feature schemas."
+            )
+
         expected_model_features = model_features
 
     return models
@@ -182,16 +194,21 @@ with st.form("prediction_form"):
         )
 
     with demographic_columns[1]:
-        gender_label = st.selectbox("Gender", tuple(GENDER_CODES))
+        gender_label = st.selectbox(
+            "Gender",
+            tuple(GENDER_CODES),
+        )
 
     with demographic_columns[2]:
         education_label = st.selectbox(
-            "Education level", tuple(EDUCATION_CODES)
+            "Education level",
+            tuple(EDUCATION_CODES),
         )
 
     with demographic_columns[3]:
         background_label = st.selectbox(
-            "Residential background", tuple(BACKGROUND_CODES)
+            "Residential background",
+            tuple(BACKGROUND_CODES),
         )
 
     st.subheader("Your experiences")
@@ -234,14 +251,22 @@ if submitted:
     )
 
     try:
-        pressure_score = float(pressure_model.predict(model_input)[0])
-        toxicity_score = float(toxicity_model.predict(model_input)[0])
+        pressure_score = float(
+            pressure_model.predict(model_input)[0]
+        )
+        toxicity_score = float(
+            toxicity_model.predict(model_input)[0]
+        )
 
         st.subheader("Estimated results")
+
         pressure_column, toxicity_column = st.columns(2)
 
         with pressure_column:
-            st.metric("Parental pressure", f"{pressure_score:.2f} / 10")
+            st.metric(
+                "Parental pressure",
+                f"{pressure_score:.2f} / 10",
+            )
             st.caption("Model: Linear Regression")
 
         with toxicity_column:
@@ -251,11 +276,38 @@ if submitted:
             )
             st.caption("Model: Random Forest Regressor")
 
+        # NEW: Parental pressure interpretation
+        st.subheader("Parental Pressure Level")
+
+        if pressure_score < 3:
+            st.success("Low Pressure — Generally okay")
+        elif pressure_score < 5:
+            st.info("Moderate Pressure — Within a manageable range")
+        elif pressure_score < 7:
+            st.warning("High Pressure — Attention recommended")
+        else:
+            st.error("Very High Pressure — Serious concern")
+
+        # NEW: Perceived parental toxicity interpretation
+        st.subheader("Perceived Parental Toxicity Level")
+
+        if toxicity_score < 3:
+            st.success("Low — Generally okay")
+        elif toxicity_score < 5:
+            st.info("Moderate — Some concerns may be present")
+        elif toxicity_score < 7:
+            st.warning("High — Potentially concerning")
+        else:
+            st.error("Very High — Significant concern")
+
         st.info(
             "Model outputs are continuous estimates and may not be whole "
             "numbers. Interpret them in the context of the training data."
         )
 
     except Exception as error:
-        st.error("Prediction failed. The saved model may expect a different input schema.")
+        st.error(
+            "Prediction failed. The saved model may expect a different "
+            "input schema."
+        )
         st.code(f"{type(error).__name__}: {error}")
