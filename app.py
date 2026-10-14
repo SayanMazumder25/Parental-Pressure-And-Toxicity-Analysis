@@ -1,3 +1,4 @@
+
 from pathlib import Path
 
 import joblib
@@ -6,8 +7,17 @@ import streamlit as st
 
 
 APP_DIR = Path(__file__).resolve().parent
-PRESSURE_MODEL_PATH = APP_DIR / "parental_pressure_model.pkl"
-TOXICITY_MODEL_PATH = APP_DIR / "parental_toxicity_model.pkl"
+MODEL_DIR = next(
+    (
+        directory
+        for directory in (APP_DIR / "models", APP_DIR / "Models")
+        if directory.is_dir()
+    ),
+    APP_DIR / "models",
+)
+
+PRESSURE_MODEL_PATH = MODEL_DIR / "parental_pressure_model.pkl"
+TOXICITY_MODEL_PATH = MODEL_DIR / "parental_toxicity_model.pkl"
 
 FEATURES = (
     "Age",
@@ -16,9 +26,9 @@ FEATURES = (
     "Background",
     "Pressure_Relevance",
     "Comparison_Relevance",
-    "Career_Relevance ",
+    "Career_Relevance",
     "Personal_Decison_Relevance",
-    "Decision_Relevance ",
+    "Decision_Relevance",
     "Friendship_Relevance",
     "Guilt_Relevance",
     "Feeling_relevance",
@@ -30,11 +40,13 @@ GENDER_CODES = {
     "Female": 1,
     "Prefer not to say": 2,
 }
+
 EDUCATION_CODES = {
     "School": 0,
     "Undergraduate": 1,
     "Postgraduate": 2,
 }
+
 BACKGROUND_CODES = {
     "Rural": 1,
     "Semi-rural": 2,
@@ -53,7 +65,7 @@ SURVEY_QUESTIONS = (
         "How often do your parents compare your academic performance with others?",
     ),
     (
-        "Career_Relevance ",
+        "Career_Relevance",
         "Influence over career choice",
         "How often do your parents influence your career choice?",
     ),
@@ -63,7 +75,7 @@ SURVEY_QUESTIONS = (
         "How often do your parents take important decisions for you?",
     ),
     (
-        "Decision_Relevance ",
+        "Decision_Relevance",
         "Freedom to make your own decisions",
         "How much freedom do you have to make decisions about your own life?",
     ),
@@ -90,45 +102,77 @@ SURVEY_QUESTIONS = (
 )
 
 
-@st.cache_resource
-def load_models():
-    models = (
-        joblib.load(PRESSURE_MODEL_PATH),
-        joblib.load(TOXICITY_MODEL_PATH),
-    )
-    for model, path in zip(models, (PRESSURE_MODEL_PATH, TOXICITY_MODEL_PATH)):
-        model_features = getattr(model, "feature_names_in_", None)
-        if model_features is None:
-            raise ValueError(f"The model at {path.name} has no fitted feature names.")
-        if tuple(model_features) != FEATURES:
-            raise ValueError(
-                f"The model at {path.name} expects a different feature schema. "
-                "Use the matching model files from the notebook."
-            )
-    return models
-
-
 st.set_page_config(
     page_title="Parental Pressure & Toxicity Estimator",
     page_icon="📊",
     layout="wide",
 )
 
+
+@st.cache_resource
+def load_models():
+    for path in (PRESSURE_MODEL_PATH, TOXICITY_MODEL_PATH):
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Model file not found: {path}\n"
+                "Check the models folder and the exact filenames."
+            )
+
+    models = (
+        joblib.load(PRESSURE_MODEL_PATH),
+        joblib.load(TOXICITY_MODEL_PATH),
+    )
+    expected_model_features = None
+    for model, path in zip(models, (PRESSURE_MODEL_PATH, TOXICITY_MODEL_PATH)):
+        model_features = getattr(model, "feature_names_in_", None)
+        if model_features is None:
+            raise ValueError(
+                f"The model at {path.name} has no fitted feature names."
+            )
+
+        model_features = tuple(model_features)
+        normalized_features = tuple(
+            str(feature).strip() for feature in model_features
+        )
+        if normalized_features != FEATURES:
+            raise ValueError(
+                f"The model at {path.name} expects a different feature schema. "
+                "Use the matching model files from the notebook."
+            )
+        if (
+            expected_model_features is not None
+            and model_features != expected_model_features
+        ):
+            raise ValueError("The saved models use different feature schemas.")
+        expected_model_features = model_features
+
+    return models
+
+
 st.title("Parental Pressure & Toxicity Estimator")
+
 st.write(
-    "Enter demographic details and survey responses to estimate parental pressure "
-    "and the perceived toxicity of the parenting environment."
-)
-st.caption(
-    "These are estimates from the models trained in the accompanying notebook, "
-    "not a diagnosis or a substitute for professional support."
+    "Enter demographic details and survey responses to estimate parental "
+    "pressure and the perceived toxicity of the parenting environment."
 )
 
-pressure_model, toxicity_model = load_models()
+st.caption(
+    "These are model-based estimates, not a diagnosis or a substitute "
+    "for professional support."
+)
+
+try:
+    pressure_model, toxicity_model = load_models()
+except Exception as error:
+    st.error("The saved models could not be loaded.")
+    st.code(str(error))
+    st.stop()
+
 
 with st.form("prediction_form"):
     st.subheader("About you")
     demographic_columns = st.columns(4)
+
     with demographic_columns[0]:
         age = st.number_input(
             "Age",
@@ -136,19 +180,29 @@ with st.form("prediction_form"):
             max_value=50,
             value=20,
             step=1,
-            help="The notebook dataset contains respondents aged 14 to 50.",
         )
+
     with demographic_columns[1]:
         gender_label = st.selectbox("Gender", tuple(GENDER_CODES))
+
     with demographic_columns[2]:
-        education_label = st.selectbox("Education level", tuple(EDUCATION_CODES))
+        education_label = st.selectbox(
+            "Education level", tuple(EDUCATION_CODES)
+        )
+
     with demographic_columns[3]:
-        background_label = st.selectbox("Residential background", tuple(BACKGROUND_CODES))
+        background_label = st.selectbox(
+            "Residential background", tuple(BACKGROUND_CODES)
+        )
 
     st.subheader("Your experiences")
-    st.caption("For each item, choose a response from 1 (Never) to 5 (Very often).")
+    st.caption(
+        "For each item, choose a response from 1 (Never) to 5 (Very often)."
+    )
+
     survey_values = {}
     question_columns = st.columns(3)
+
     for index, (feature, label, question) in enumerate(SURVEY_QUESTIONS):
         with question_columns[index % 3]:
             survey_values[feature] = st.slider(
@@ -160,7 +214,11 @@ with st.form("prediction_form"):
                 key=feature,
             )
 
-    submitted = st.form_submit_button("Estimate scores", type="primary")
+    submitted = st.form_submit_button(
+        "Estimate scores",
+        type="primary",
+    )
+
 
 if submitted:
     input_values = {
@@ -170,23 +228,35 @@ if submitted:
         "Background": BACKGROUND_CODES[background_label],
         **survey_values,
     }
+
     model_input = pd.DataFrame(
         [[input_values[feature] for feature in FEATURES]],
-        columns=FEATURES,
+        columns=pressure_model.feature_names_in_,
     )
 
-    pressure_score = float(pressure_model.predict(model_input)[0])
-    toxicity_score = float(toxicity_model.predict(model_input)[0])
+    try:
+        pressure_score = float(pressure_model.predict(model_input)[0])
+        toxicity_score = float(toxicity_model.predict(model_input)[0])
 
-    st.subheader("Estimated results")
-    pressure_column, toxicity_column = st.columns(2)
-    with pressure_column:
-        st.metric("Parental pressure", f"{pressure_score:.2f} / 10")
-        st.caption("Model: Linear Regression")
-    with toxicity_column:
-        st.metric("Perceived parental toxicity", f"{toxicity_score:.2f} / 10")
-        st.caption("Model: Random Forest Regressor")
-    st.info(
-        "The notebook uses 1–10 scales for both target scores. Model outputs are "
-        "continuous estimates and may not be whole numbers."
-    )
+        st.subheader("Estimated results")
+        pressure_column, toxicity_column = st.columns(2)
+
+        with pressure_column:
+            st.metric("Parental pressure", f"{pressure_score:.2f} / 10")
+            st.caption("Model: Linear Regression")
+
+        with toxicity_column:
+            st.metric(
+                "Perceived parental toxicity",
+                f"{toxicity_score:.2f} / 10",
+            )
+            st.caption("Model: Random Forest Regressor")
+
+        st.info(
+            "Model outputs are continuous estimates and may not be whole "
+            "numbers. Interpret them in the context of the training data."
+        )
+
+    except Exception as error:
+        st.error("Prediction failed. The saved model may expect a different input schema.")
+        st.code(f"{type(error).__name__}: {error}")
