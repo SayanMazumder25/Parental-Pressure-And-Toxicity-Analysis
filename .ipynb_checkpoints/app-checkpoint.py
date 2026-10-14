@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 import joblib
@@ -7,7 +6,14 @@ import streamlit as st
 
 
 APP_DIR = Path(__file__).resolve().parent
-MODEL_DIR = APP_DIR / "Models"
+MODEL_DIR = next(
+    (
+        directory
+        for directory in (APP_DIR / "models", APP_DIR / "Models")
+        if directory.is_dir()
+    ),
+    APP_DIR / "models",
+)
 
 PRESSURE_MODEL_PATH = MODEL_DIR / "parental_pressure_model.pkl"
 TOXICITY_MODEL_PATH = MODEL_DIR / "parental_toxicity_model.pkl"
@@ -108,13 +114,38 @@ def load_models():
         if not path.is_file():
             raise FileNotFoundError(
                 f"Model file not found: {path}\n"
-                "Check the Models folder and the exact filenames."
+                "Check the models folder and the exact filenames."
             )
 
-    pressure_model = joblib.load(PRESSURE_MODEL_PATH)
-    toxicity_model = joblib.load(TOXICITY_MODEL_PATH)
+    models = (
+        joblib.load(PRESSURE_MODEL_PATH),
+        joblib.load(TOXICITY_MODEL_PATH),
+    )
+    expected_model_features = None
+    for model, path in zip(models, (PRESSURE_MODEL_PATH, TOXICITY_MODEL_PATH)):
+        model_features = getattr(model, "feature_names_in_", None)
+        if model_features is None:
+            raise ValueError(
+                f"The model at {path.name} has no fitted feature names."
+            )
 
-    return pressure_model, toxicity_model
+        model_features = tuple(model_features)
+        normalized_features = tuple(
+            str(feature).strip() for feature in model_features
+        )
+        if normalized_features != FEATURES:
+            raise ValueError(
+                f"The model at {path.name} expects a different feature schema. "
+                "Use the matching model files from the notebook."
+            )
+        if (
+            expected_model_features is not None
+            and model_features != expected_model_features
+        ):
+            raise ValueError("The saved models use different feature schemas.")
+        expected_model_features = model_features
+
+    return models
 
 
 st.title("Parental Pressure & Toxicity Estimator")
@@ -199,7 +230,7 @@ if submitted:
 
     model_input = pd.DataFrame(
         [[input_values[feature] for feature in FEATURES]],
-        columns=FEATURES,
+        columns=pressure_model.feature_names_in_,
     )
 
     try:
