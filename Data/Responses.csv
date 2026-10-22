@@ -1,4 +1,4 @@
-Age,Gender,Education_Level,Background,Pressure_Relevance,Comparison_Relevance,Career_Relevance ,Personal_Decison_Relevance,Decision_Relevance ,Friendship_Relevance,Guilt_Relevance,Feeling_relevance,Fear_Relevance,Pressure_Evaluation,Toxicity_Relevance
+Age,Gender,Education_Level,Background,Pressure_Relevance,Comparison_Relevance,Career_Relevance,Personal_Decision_Relevance,Decision_Relevance,Friendship_Relevance,Guilt_Relevance,Feeling_Relevance,Fear_Relevance,Pressure_Evaluation,Toxicity_Relevance
 20,Male,Undergraduate,2,3,4,4,4,5,5,1,5,5,7,4
 21,Male,Undergraduate,3,2,3,1,1,2,1,3,1,4,3,2
 18,Female,Undergraduate,3,3,5,3,3,1,4,5,4,5,5,1
