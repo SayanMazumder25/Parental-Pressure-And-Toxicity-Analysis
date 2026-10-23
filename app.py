@@ -252,10 +252,10 @@ if submitted:
 
     try:
         pressure_score = float(
-            pressure_model.predict(model_input)[0]
+            pressure_model.predict(model_input)[0].round()
         )
         toxicity_score = float(
-            toxicity_model.predict(model_input)[0]
+            toxicity_model.predict(model_input)[0].round()
         )
 
         st.subheader("Estimated results")
